@@ -108,6 +108,19 @@ Finally, let's give the kernel a massive buffer to work with.
 
 \textit{Observe the throughput. Is the performance gap between 4KB and 1MB as massive as the gap between 1 Byte and 4KB?}
 
+\subsection*{Task 2.4: The C Standard Library Rescue (User-Space Buffering)}
+
+In Task 2.1, you saw that reading a file 1 byte at a time using the raw POSIX \texttt{read()} system call destroyed performance due to the syscall tax. However, sometimes application logic \textit{requires} processing a file character-by-character (e.g., parsing a CSV). 
+
+To solve this without forcing the programmer to write complex batching logic, the C Standard Library (\texttt{libc}) provides user-space buffering via functions like \texttt{fopen()} and \texttt{fread()}. 
+
+We have provided a second program, \texttt{read\_libc.c}. Look at its source code. It reads the file exactly 1 byte at a time, just like Task 2.1, but it uses \texttt{fread()} instead of \texttt{read()}. Let's trace it:
+
+\begin{minted}{shell}
+    strace -c ./read_libc large_file.bin
+\end{minted}
+\textit{Observe the output. Even though the C code loops 500 million times requesting 1 byte, how many actual \texttt{read} system calls did the OS kernel execute? What does this tell you about what \texttt{libc} is doing behind the scenes in user space?}
+
 \section*{Part 3: Lab Questions}
 
 \noindent \textbf{Question 1:} In the 1-byte buffer test, your SSD/HDD was likely barely active, yet the program took a long time. If the physical disk wasn't the bottleneck, what exact component or process was?

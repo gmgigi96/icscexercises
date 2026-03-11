@@ -1,12 +1,14 @@
 CFLAGS = -Wall -Wextra -O2
-TARGET = read_test
-SRCS = read_test.c
+TARGETS = read_test read_libc
 
-all: $(TARGET)
+all: $(TARGETS)
 
-$(TARGET): $(SRCS)
-	@$(CC) $(CFLAGS) -o $(TARGET) $(SRCS)
+read_test: read_test.c
+	$(CC) $(CFLAGS) -o read_test read_test.c
+
+read_libc: read_libc.c
+	$(CC) $(CFLAGS) -o read_libc read_libc.c
 
 .PHONY: clean
 clean:
-	@rm -f $(TARGET) large_file.bin
+	@rm -f $(TARGETS) large_file.bin

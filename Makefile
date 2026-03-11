@@ -5,7 +5,8 @@ PDF_FILES = $(TEX_FILES:.tex=.pdf)
 all: $(PDF_FILES)
 
 %.pdf: %.tex
-	pdflatex $<
+	@pdflatex $<
+	@pdflatex $<
 
 .PHONY: clean
 clean:

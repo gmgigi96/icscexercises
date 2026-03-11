@@ -35,3 +35,4 @@ Thumbs.db
 
 # Build artifacts from exercises
 exercise1/read_test
+exercise1/read_libc
