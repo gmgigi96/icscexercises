@@ -1,1 +1,37 @@
+# Core LaTeX artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.pdf
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+_minted
+
+# Minted / Pygments artifacts (for syntax highlighting)
+_minted-*/
+*.pytxcode
+
+# Bibliography files (if you add citations later)
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.run.xml
+
+# Beamer presentation artifacts (if you decide to build your slides in LaTeX)
+*.nav
+*.snm
+*.vrb
+
+# OS-specific clutter (always good to have)
+.DS_Store
+Thumbs.db
+
+# Build artifacts from exercises
 exercise1/read_test
