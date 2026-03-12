@@ -36,3 +36,9 @@ Thumbs.db
 # Build artifacts from exercises
 exercise1/read_test
 exercise1/read_libc
+
+exercise2/client
+exercise2/server_naive
+exercise2/server_sendfile
+# Skipping because already included as a solution
+exercise2/server_sendfile.c
