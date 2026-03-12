@@ -10,10 +10,9 @@
 *.fdb_latexmk
 *.synctex.gz
 *.synctex(busy)
-_minted
 
 # Minted / Pygments artifacts (for syntax highlighting)
-_minted-*/
+_minted*/
 *.pytxcode
 
 # Bibliography files (if you add citations later)
@@ -39,6 +38,5 @@ exercise1/read_libc
 
 exercise2/client
 exercise2/server_naive
-exercise2/server_sendfile
-# Skipping because already included as a solution
-exercise2/server_sendfile.c
+exercise2/server_sendfile*
+exercise2/server_uring*
