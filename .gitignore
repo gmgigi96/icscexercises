@@ -40,3 +40,4 @@ exercise2/client
 exercise2/server_naive
 exercise2/server_sendfile*
 exercise2/server_uring*
+exercise2/server_splice*

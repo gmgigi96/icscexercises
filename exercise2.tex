@@ -164,7 +164,34 @@ Compile your code. Run your new \texttt{server\_sendfile} through \texttt{strace
 
 \textit{Observe your new metrics. You should see those thousands of \texttt{read/write} system calls vanish, replaced by just one \texttt{sendfile} call!}
 
-\section*{Part 4: The Future with \texttt{io\_uring}}
+\section*{Part 4: Zero-Copy Pipelines with \texttt{splice}}
+While \texttt{sendfile} is fantastic, it was historically limited: the output file descriptor \textit{had} to be a network socket. What if we want to do zero-copy between two regular files, or a file and a hardware device? 
+
+The Linux kernel provides a more flexible zero-copy mechanism called \texttt{splice()}. It allows you to move data between any two file descriptors, as long as one of them is a kernel pipe. By creating a pipe, we can build an in-kernel pipeline: Disk $\rightarrow$ Pipe $\rightarrow$ Socket, completely bypassing user-space memory!
+
+Create a new file called \texttt{server\_splice.c}. Copy the connection logic from the naive server, but replace the \texttt{read/write} loop entirely with a \texttt{splice()} pipeline.
+
+\subsubsection*{Implementation Hints}
+\begin{itemize}
+    \item You must add \texttt{\#define \_GNU\_SOURCE} at the \textbf{very top} of your C file (before any \texttt{\#include}) to unlock Linux-specific pipe features.
+    \item You will need to include \texttt{<fcntl.h>}.
+    \item Create a kernel pipe before your loop: \texttt{int pipefds[2]; pipe(pipefds);}
+    \item \textbf{The Pipe Bottleneck:} Standard Linux pipes hold exactly 64KB. If you loop this, you will execute over 32,000 \texttt{splice} calls! To fix this, resize your pipe to 1MB before the loop: \\
+    \texttt{fcntl(pipefds[0], F\_SETPIPE\_SZ, 1024 * 1024);}
+    \item The signature is: \texttt{ssize\_t splice(int fd\_in, off\_t *off\_in, int fd\_out, off\_t *off\_out, size\_t len, unsigned int flags);}
+    \item Inside your loop, you will need \textbf{two} \texttt{splice} calls. 
+    \begin{enumerate}
+        \item Splice data from the \texttt{file\_fd} into the write-end of the pipe (\texttt{pipefds[1]}).
+        \item Splice data from the read-end of the pipe (\texttt{pipefds[0]}) directly into the \texttt{client\_fd}.
+    \end{enumerate}
+    \item You can pass \texttt{NULL} for the offsets to let the kernel update them automatically, and use \texttt{SPLICE\_F\_MORE} for the flags.
+\end{itemize}
+
+Compile your code. Run your new \texttt{server\_splice} through \texttt{strace -c}, triggering the client. 
+
+\textit{Observe your metrics. You should see zero \texttt{read} or \texttt{write} calls, replaced entirely by \texttt{splice}. You have successfully built a zero-copy pipeline!}
+
+\section*{Bonus Task 1: The Future with \texttt{io\_uring}}
 Create a file called \texttt{server\_uring.c}. In the lecture, we discussed how \texttt{io\_uring} can batch operations and execute them asynchronously. 
 
 We will use a feature called \textbf{I/O Chaining} (\texttt{IOSQE\_IO\_LINK}). We will instruct the kernel to read a large chunk of data, and if successful, immediately write it to the socket, all without waking up the application!
@@ -204,9 +231,9 @@ We will use a feature called \textbf{I/O Chaining} (\texttt{IOSQE\_IO\_LINK}). W
     // Notice that we expect 2 completions (one for read and one for write)
 \end{minted}
 
-\section*{Part 5: Lab Questions}
+\subsection*{Lab Question}
 
-\noindent \textbf{Question 1:} In Part 2, \texttt{strace} revealed that the naive server executed tens of thousands of system calls to transfer the 1GB file. In Part 3, the \texttt{sendfile} implementation accomplished the same transfer with only a few system calls. Based on the lecture, explain what happened to the user-space buffer, and describe the path the data takes from the disk to the network socket when using \texttt{sendfile}.
+\noindent In Part 2, \texttt{strace} revealed that the naive server executed tens of thousands of system calls to transfer the 1GB file. In Part 3, the \texttt{sendfile} implementation accomplished the same transfer with only a few system calls. Based on the lecture, explain what happened to the user-space buffer, and describe the path the data takes from the disk to the network socket when using \texttt{sendfile}.
 
 \vspace{0.2cm}
 \noindent
@@ -217,7 +244,7 @@ We will use a feature called \textbf{I/O Chaining} (\texttt{IOSQE\_IO\_LINK}). W
     \end{minipage}
 }
 
-\section*{Bonus Task: The Zero-Copy Pipeline}
+\section*{Bonus Task 2: The Zero-Copy Pipeline}
 
 In Question 2, you hopefully realized a major flaw in our \texttt{io\_uring} implementation: by routing the data through a \texttt{malloc}'d buffer, we still suffered from the Double Copy problem! We eliminated the system call tax, but forced the CPU to copy 2 Gigabytes of memory (1GB up to user space, 1GB down to the socket).
 
