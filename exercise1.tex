@@ -11,6 +11,7 @@
 \usepackage{mdframed}
 \usepackage{minted}
 \usepackage{ifthen}
+\usepackage{amsmath}
 
 \newdimen\longline
 \longline=\textwidth\advance\longline-6cm
@@ -56,95 +57,86 @@
 \maketitle
 
 \section*{Background}
-During the lecture, we discussed the hidden cost of traditional I/O. Every time your application invokes a standard \texttt{read()} or \texttt{write()} command, it forces a context switch (a mode switch from user space to kernel space). While a single mode switch is relatively fast (a fraction of a microsecond), doing it millions of times will severely degrade your application's throughput. 
+In the lecture, we discussed the ``Syscall Tax.'' Every time an application invokes a standard \texttt{read()} or \texttt{write()} command, the CPU must transition from \textbf{User Mode} (Ring 3) to \textbf{Kernel Mode} (Ring 0). 
 
-In this exercise, you will use a provided C program and the Linux \texttt{strace} utility to visually quantify the ``syscall tax.'' You will observe how reading a large file with drastically different buffer sizes impacts the number of system calls and the overall execution time.
+While a single mode switch is incredibly fast, the cumulative cost of millions of switches can destroy performance. In this lab, you will physically quantify this cost and explore how both manual batching and the C Standard Library (\texttt{libc}) work to mitigate this overhead.
 
 \section*{Part 1: Environment Setup}
-First, you need to download the source code for this lab from the course repository. Open your terminal and run the following commands to clone the repository and navigate to the correct directory:
+First, clone the lab repository and navigate to the Exercise 1 directory:
 
 \begin{minted}{shell}
-    git clone https://github.com/gmgigi96/icscexercises.git
-    cd icscexercises/exercise1
+git clone https://github.com/gmgigi96/icscexercises.git
+cd icscexercises/exercise1
 \end{minted}
 
-Next, let's create a large dummy data file to read from. We will use the \texttt{dd} utility to generate a 500 MB file filled with random data (this might take a few seconds to complete):
+Next, compile the programs:
+\begin{minted}{shell}
+make
+\end{minted}
+
+\section*{Part 2: Quantifying the Syscall Tax}
+We will use \texttt{strace -c} to intercept system calls and provide a statistical summary.
+
+\subsection*{Task 2.1: Generate the dataset}
+Create a \textbf{1 MB} dummy file. While small, reading this 1 byte at a time will trigger over 1 million system calls, which is enough to measure the ``tax'' without taking hours:
 
 \begin{minted}{shell}
-    dd if=/dev/urandom of=large_file.bin bs=1M count=500
+dd if=/dev/urandom of=testfile.bin bs=1M count=1
 \end{minted}
 
-Finally, compile the C program using the provided Makefile:
+\subsection*{Task 2.2: The 1-Byte ``Torture Test''}
+Run the program reading exactly 1 byte at a time. This forces a mode switch for \textit{every single byte} in the 1 MB file. 
 
 \begin{minted}{shell}
-    make
+strace -c ./read_test testfile.bin 1
 \end{minted}
 
-\section*{Part 2: The Experiment}
-We will now test how buffer size changes the OS behavior using \texttt{strace}, a diagnostic tool that intercepts and records system calls. We use the \texttt{-c} flag to get a statistical summary.
+\textit{Note: This may take 60--90 seconds. Please be patient!}
 
-\subsection*{Task 2.1: The 1-Byte Buffer (The Worst-Case Scenario)}
-Run the program reading just 1 byte at a time. This forces the CPU to switch from user space to kernel space for every single byte in the 500 MB file.
+\subsubsection*{Calculation: How much does a single syscall cost?}
+Look at the \texttt{read} row in your \texttt{strace} output. 
+
+\begin{enumerate}
+    \item \textbf{Total Time (s):} Record the value from the \texttt{seconds} column: \rule{2cm}{0.4pt}
+    \item \textbf{Total Calls:} Record the value from the \texttt{calls} column: \rule{2cm}{0.4pt}
+    \item \textbf{Average Latency:}
+    \[ \text{Cost per syscall} = \frac{\text{Total seconds}}{\text{Total calls}} = \rule{3cm}{0.4pt} \text{ seconds} \]
+\end{enumerate}
+
+\section*{Part 3: Scaling Up and Breaking the Bottleneck}
+Now that you have measured the massive cost of a single byte read, we will see how batching allows us to handle much larger datasets.
+
+\subsection*{Task 3.1: Generate a larger dataset}
+
+Create a \textbf{100 MB} file. This is 100x larger than the previous file.
 \begin{minted}{shell}
-    strace -c ./read_test large_file.bin 1
+dd if=/dev/urandom of=large_file.bin bs=1M count=100
 \end{minted}
 
-\textit{Observe the output table. How many \texttt{read} calls were executed?}
-
-
-\subsection*{Task 2.2: The 4KB Buffer (The Block Size)}
-Now, let's match the typical logical block size of a storage drive and a standard RAM page (4096 bytes).
-\begin{minted}{shell}
-    strace -c ./read_test large_file.bin 4096
-\end{minted}
-
-\textit{Observe how drastically the execution time dropped and the new number of \texttt{read} syscalls.}
-
-\subsection*{Task 2.3: The 1MB Buffer (The Batching Approach)}
-Finally, let's give the kernel a massive buffer to work with.
-\begin{minted}{shell}
-    strace -c ./read_test large_file.bin 1048576
-\end{minted}
-
-\textit{Observe the throughput. Is the performance gap between 4KB and 1MB as massive as the gap between 1 Byte and 4KB?}
-
-\subsection*{Task 2.4: The C Standard Library Rescue (User-Space Buffering)}
-
-In Task 2.1, you saw that reading a file 1 byte at a time using the raw POSIX \texttt{read()} system call destroyed performance due to the syscall tax. However, sometimes application logic \textit{requires} processing a file character-by-character (e.g., parsing a CSV). 
-
-To solve this without forcing the programmer to write complex batching logic, the C Standard Library (\texttt{libc}) provides user-space buffering via functions like \texttt{fopen()} and \texttt{fread()}. 
-
-We have provided a second program, \texttt{read\_libc.c}. Look at its source code. It reads the file exactly 1 byte at a time, just like Task 2.1, but it uses \texttt{fread()} instead of \texttt{read()}. Let's trace it:
+\subsection*{Task 3.2: Batching with \texttt{read()}}
+Run the test using a 4KB buffer on the large file. Even though the file is 100x larger than the first one, observe the total time:
 
 \begin{minted}{shell}
-    strace -c ./read_libc large_file.bin
+time ./read_test large_file.bin 4096
 \end{minted}
-\textit{Observe the output. Even though the C code loops 500 million times requesting 1 byte, how many actual \texttt{read} system calls did the OS kernel execute? What does this tell you about what \texttt{libc} is doing behind the scenes in user space?}
 
-\section*{Part 3: Lab Questions}
+\section*{Part 4: The C Library Rescue}
+Programmers often need to process files byte-by-byte (e.g., character parsing). To make this efficient without manual buffer management, \texttt{libc} provides \textbf{Buffered I/O}. 
 
-\noindent \textbf{Question 1:} In the 1-byte buffer test, your SSD/HDD was likely barely active, yet the program took a long time. If the physical disk wasn't the bottleneck, what exact component or process was?
+Look at \texttt{read\_libc.c}. It loops millions of times reading 1 byte, but it uses \texttt{fread()} instead of the raw \texttt{read()} system call. Trace its execution on the large file:
+
+\begin{minted}{shell}
+strace -c ./read_libc large_file.bin
+\end{minted}
+
+\textit{Observe the number of \texttt{read} calls. Even though the C code asks for 1 byte at a time, \texttt{libc} performs its own batching in user-space. How many syscalls did the kernel actually see?}
+
+\section*{Part 5: Lab Questions}
+
+\noindent \textbf{Question 1:} In Task 2.2 (1-byte read), the CPU was likely pinned at 100\%, but the disk was barely active. What exactly was the CPU doing during those 60--90 seconds?
 
 \vspace{0.2cm}
-\noindent
-\fbox{
-    \begin{minipage}{0.97\textwidth}
-        \vspace{4.5cm} % Adjust this to make the box taller or shorter
-        \hfill
-    \end{minipage}
-}
 
-\vspace{0.8cm}
-
-\noindent \textbf{Question 2:} When you increased the buffer from 4KB to 1MB, the number of syscalls decreased, but the overall throughput might not have scaled perfectly linearly. Based on the ``Page Cache'' concept from the lecture, why do you think diminishing returns kick in at very large user-space buffer sizes?
-
-\vspace{0.2cm}
-\noindent
-\fbox{
-    \begin{minipage}{0.97\textwidth}
-        \vspace{5.5cm} % Adjust this to make the box taller or shorter
-        \hfill
-    \end{minipage}
-}
+\noindent \textbf{Question 2:} Based on your \texttt{strace} results, explain the difference between a ``function call'' to the C library (\texttt{fread}) and a ``system call'' to the kernel (\texttt{read}). Why is one so much faster than the other?
 
 \end{document}
