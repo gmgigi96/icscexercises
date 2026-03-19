@@ -235,15 +235,6 @@ We will use a feature called \textbf{I/O Chaining} (\texttt{IOSQE\_IO\_LINK}). W
 
 \noindent In Part 2, \texttt{strace} revealed that the naive server executed tens of thousands of system calls to transfer the 1GB file. In Part 3, the \texttt{sendfile} implementation accomplished the same transfer with only a few system calls. Based on the lecture, explain what happened to the user-space buffer, and describe the path the data takes from the disk to the network socket when using \texttt{sendfile}.
 
-\vspace{0.2cm}
-\noindent
-\fbox{
-    \begin{minipage}{0.97\textwidth}
-        \vspace{4.0cm} 
-        \hfill
-    \end{minipage}
-}
-
 \section*{Bonus Task 2: The Zero-Copy Pipeline}
 
 In Question 2, you hopefully realized a major flaw in our \texttt{io\_uring} implementation: by routing the data through a \texttt{malloc}'d buffer, we still suffered from the Double Copy problem! We eliminated the system call tax, but forced the CPU to copy 2 Gigabytes of memory (1GB up to user space, 1GB down to the socket).
